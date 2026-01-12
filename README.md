@@ -6,13 +6,14 @@ This project focuses on API design, backend integration, and schema validation, 
 
 Project Scope and Contributions
 
-Implemented by Me
+Implemented by Web Development team
 - FastAPI application setup (main.py)
 - API routing and endpoint design (/api/redact)
 - Request and response schemas using Pydantic
 - Integration of the AI pipeline into FastAPI
 - CORS configuration for frontend communication
 - Error handling and response formatting
+- Swagger/OpenAPI testing and validation
 
 Provided by AI/ML Team
 - PII detection pipeline (GLiNER-based NER)
