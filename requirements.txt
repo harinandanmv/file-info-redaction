@@ -18,3 +18,4 @@ tqdm
 python-docx
 PyPDF2
 pandas
+python-multipart
