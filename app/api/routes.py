@@ -14,6 +14,7 @@ from app.services.file_extractors.docx_extractor import extract_text_from_docx
 
 from app.db.models import RedactionLog
 from app.db.crud import get_db
+from app.db.crud import create_redaction_log
 
 router = APIRouter()
 
@@ -40,11 +41,14 @@ def redact_plain_text(
             input_type="text",
             source_name="plain_text",
             entity_count=len(result.entities),
-            columns_redacted=None
+            columns_redacted=None)
+        result = redaction_helper(request.text)
+        create_redaction_log(
+        db=db,
+        input_type="text",
+        source_name="plain_text",
+        entity_count=len(result.entities)
         )
-        db.add(log)
-        db.commit()
-
         return result
 
     except Exception as e:
@@ -73,14 +77,12 @@ async def redact_pdf_file(
         pipeline = request.app.state.pii_pipeline
         result = redaction_helper(text, pipeline)
 
-        log = RedactionLog(
-            input_type="pdf",
-            source_name=file.filename,
-            entity_count=len(result.entities),
-            columns_redacted=None
-        )
-        db.add(log)
-        db.commit()
+        create_redaction_log(
+        db=db,
+        input_type="pdf",
+        source_name=file.filename,
+        entity_count=len(result.entities)
+    )
 
         return result
 
@@ -110,14 +112,12 @@ async def redact_docx_file(
         pipeline = request.app.state.pii_pipeline
         result = redaction_helper(text, pipeline)
 
-        log = RedactionLog(
-            input_type="docx",
-            source_name=file.filename,
-            entity_count=len(result.entities),
-            columns_redacted=None
-        )
-        db.add(log)
-        db.commit()
+        create_redaction_log(
+        db=db,
+        input_type="docx",
+        source_name=file.filename,
+        entity_count=len(result.entities)
+    )
 
         return result
 
@@ -178,6 +178,13 @@ async def redact_csv_file(
         )
         db.add(log)
         db.commit()
+        create_redaction_log(
+        db=db,
+        input_type="csv",
+        source_name=file.filename,
+        entity_count=len(result.entities),
+        columns_redacted=columns
+    )
 
         return result
 
