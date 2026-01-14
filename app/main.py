@@ -2,8 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
-<<<<<<< HEAD
 from app.core.pipeline import PIIPipeline
+from app.db.database import engine
+from app.db.models import Base
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,11 +17,6 @@ async def lifespan(app: FastAPI):
         raise
     yield
     print("Shutting down Pipeline!")
-=======
-from app.db.database import engine
-from app.db.models import Base
-
->>>>>>> d7717be661868476581ddf3cec50899a73a438b1
 
 app = FastAPI(
     title="Insurance PII Redaction API",
