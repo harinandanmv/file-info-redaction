@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
+from app.db.database import engine
+from app.db.models import Base
+
 
 app = FastAPI(
     title="Insurance PII Redaction API",
@@ -13,6 +16,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+Base.metadata.create_all(bind=engine)
 
 app.include_router(router, prefix="/api")
 

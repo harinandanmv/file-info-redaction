@@ -1,35 +1,21 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+
 # Environment variables
 .env
-.env.*
 
-# Python cache files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
 
-# Virtual environments
-venv/
-.venv/
-env/
+# Virtual environments (ignore anywhere in the repo)
+**/venv/
+**/.venv/
 
-# IDE / OS files
-.vscode/
-.idea/
-.DS_Store
-
-# Model & cache files
+# Model / Hugging Face cache
 .cache/
 .huggingface/
 models/
-
-# Runtime-generated files
 uploads/
 outputs/
-
-# Logs
-*.log
-
-# Local scratch / notes
-model_main.py
-notes.txt
