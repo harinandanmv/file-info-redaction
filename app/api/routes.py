@@ -14,6 +14,7 @@ from app.utils.helpers import redaction_helper
 
 from app.db.models import RedactionLog
 from app.db.crud import get_db
+from app.db.crud import create_redaction_log
 
 router = APIRouter()
 
@@ -25,16 +26,12 @@ def redact_plain_text(
 ):
     try:
         result = redaction_helper(request.text)
-
-        log = RedactionLog(
-                input_type="text",
-                source_name="plain_text",
-                entity_count=len(result.entities),
-                columns_redacted=None
+        create_redaction_log(
+        db=db,
+        input_type="text",
+        source_name="plain_text",
+        entity_count=len(result.entities)
         )
-        db.add(log)
-        db.commit()
-
         return result
 
     except Exception as e:
@@ -59,14 +56,12 @@ async def redact_pdf_file(
         text = extract_text_from_pdf(file_bytes)
         result = redaction_helper(text)
 
-        log = RedactionLog(
-            input_type="pdf",
-            source_name=file.filename,
-            entity_count=len(result.entities),
-            columns_redacted=None
-        )
-        db.add(log)
-        db.commit()
+        create_redaction_log(
+        db=db,
+        input_type="pdf",
+        source_name=file.filename,
+        entity_count=len(result.entities)
+    )
 
         return result
 
@@ -91,14 +86,12 @@ async def redact_docx_file(
         text = extract_text_from_docx(file_bytes)
         result = redaction_helper(text)
 
-        log = RedactionLog(
-            input_type="docx",
-            source_name=file.filename,
-            entity_count=len(result.entities),
-            columns_redacted=None
-        )
-        db.add(log)
-        db.commit()
+        create_redaction_log(
+        db=db,
+        input_type="docx",
+        source_name=file.filename,
+        entity_count=len(result.entities)
+    )
 
         return result
 
@@ -147,15 +140,13 @@ async def redact_csv_file(
         text = extract_selected_columns_as_text(file_bytes, columns)
         result = redaction_helper(text)
 
-        #DB SAVE (ADDED)
-        log = RedactionLog(
-            input_type="csv",
-            source_name=file.filename,
-            entity_count=len(result.entities),
-            columns_redacted=json.dumps(columns)
-        )
-        db.add(log)
-        db.commit()
+        create_redaction_log(
+        db=db,
+        input_type="csv",
+        source_name=file.filename,
+        entity_count=len(result.entities),
+        columns_redacted=columns
+    )
 
         return result
 
