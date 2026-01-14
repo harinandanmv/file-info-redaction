@@ -1,0 +1,31 @@
+# Environment variables
+.env
+.env.*
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Model & cache files
+.cache/
+.huggingface/
+models/
+
+# Runtime-generated files
+uploads/
+outputs/
+
+# Logs
+*.log
