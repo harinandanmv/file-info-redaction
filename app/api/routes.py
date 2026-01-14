@@ -31,10 +31,10 @@ def redact_plain_text(
 
         # ✅ DB SAVE (ADDED)
         log = RedactionLog(
-            input_type="text",
-            redacted_output=result.redacted_text,
-            entity_count=len(result.entities),
-            columns_redacted=None
+                input_type="text",
+                source_name="plain_text",
+                entity_count=len(result.entities),
+                columns_redacted=None
         )
         db.add(log)
         db.commit()
@@ -67,7 +67,7 @@ async def redact_pdf_file(
         # ✅ DB SAVE (ADDED)
         log = RedactionLog(
             input_type="pdf",
-            redacted_output=result.redacted_text,
+            source_name=file.filename,
             entity_count=len(result.entities),
             columns_redacted=None
         )
@@ -102,7 +102,7 @@ async def redact_docx_file(
         # ✅ DB SAVE (ADDED)
         log = RedactionLog(
             input_type="docx",
-            redacted_output=result.redacted_text,
+            source_name=file.filename,
             entity_count=len(result.entities),
             columns_redacted=None
         )
@@ -161,7 +161,7 @@ async def redact_csv_file(
         # ✅ DB SAVE (ADDED)
         log = RedactionLog(
             input_type="csv",
-            redacted_output=result.redacted_text,
+            source_name=file.filename,
             entity_count=len(result.entities),
             columns_redacted=json.dumps(columns)
         )

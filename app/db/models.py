@@ -7,7 +7,7 @@ class RedactionLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     input_type = Column(Text, nullable=False)
-    redacted_output = Column(Text, nullable=False)
+    source_name = Column(Text, nullable=False)
     entity_count = Column(Integer)
     columns_redacted = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
