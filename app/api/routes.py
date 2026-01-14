@@ -51,7 +51,7 @@ def redact_plain_text(
 # -------------------------
 # PDF redaction
 # -------------------------
-@router.post("/api/pdf", response_model=RedactResponse)
+@router.post("/pdf", response_model=RedactResponse)
 async def redact_pdf_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)   # ✅ ADDED
@@ -86,7 +86,7 @@ async def redact_pdf_file(
 # -------------------------
 # DOCX redaction
 # -------------------------
-@router.post("/api/docx", response_model=RedactResponse)
+@router.post("/docx", response_model=RedactResponse)
 async def redact_docx_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)   # ✅ ADDED
@@ -121,7 +121,7 @@ async def redact_docx_file(
 # -------------------------
 # CSV column fetch
 # -------------------------
-@router.post("/api/csv/columns")
+@router.post("/csv/columns")
 async def get_csv_column_names(file: UploadFile = File(...)):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
@@ -138,7 +138,7 @@ async def get_csv_column_names(file: UploadFile = File(...)):
 # -------------------------
 # CSV redaction
 # -------------------------
-@router.post("/api/redact/csv", response_model=RedactResponse)
+@router.post("/redact/csv", response_model=RedactResponse)
 async def redact_csv_file(
     file: UploadFile = File(...),
     selected_columns: str = Form(...),
