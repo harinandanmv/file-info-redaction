@@ -1,6 +1,6 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
 
-# Env
+# Environment variables
 .env
 
 # Python cache
@@ -9,12 +9,11 @@
 **/*.pyo
 **/*.pyd
 
-# Virtual env
-venv/
-.env/
-.venv/
+# Virtual environments (ignore anywhere in the repo)
+**/venv/
+**/.venv/
 
-# Model / HF cache
+# Model / Hugging Face cache
 .cache/
 .huggingface/
 models/
