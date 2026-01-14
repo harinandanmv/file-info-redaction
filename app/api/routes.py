@@ -1,29 +1,46 @@
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
-from app.schemas.redact import RedactRequest, RedactResponse
-
-from fastapi import UploadFile, File, Form, Depends
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, Depends
 from sqlalchemy.orm import Session
 import json
+from app.core.config import MAX_PLAIN_TEXT_LENGTH
+from app.schemas.redact import RedactRequest, RedactResponse
+from app.utils.helpers import redaction_helper
 
-from app.services.file_extractors.csv_extractor import get_csv_columns
-from fastapi import UploadFile, File, HTTPException, Form
-from app.services.file_extractors.csv_extractor import extract_selected_columns_as_text
+from app.services.file_extractors.csv_extractor import (
+    get_csv_columns,
+    extract_selected_columns_as_text
+)
 from app.services.file_extractors.pdf_extractor import extract_text_from_pdf
 from app.services.file_extractors.docx_extractor import extract_text_from_docx
-from app.utils.helpers import redaction_helper
 
 from app.db.database import get_db
 from app.db.crud import create_redaction_log
 
 router = APIRouter()
 
+# -----------------------------
 # Plain text redaction
+# -----------------------------
 @router.post("/redact", response_model=RedactResponse)
 def redact_plain_text(
-    request: RedactRequest,
-    db: Session = Depends(get_db) 
+    request: Request,
+    payload: RedactRequest,
+    db: Session = Depends(get_db)
 ):
+    
+    if len(payload.text) > MAX_PLAIN_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Input text exceeds maximum allowed length of {MAX_PLAIN_TEXT_LENGTH} characters"
+        )
     try:
+        pipeline = request.app.state.pii_pipeline
+        result = redaction_helper(payload.text, pipeline)
+
+        log = RedactionLog(
+            input_type="text",
+            source_name="plain_text",
+            entity_count=len(result.entities),
+            columns_redacted=None)
         result = redaction_helper(request.text)
         create_redaction_log(
         db=db,
@@ -36,15 +53,18 @@ def redact_plain_text(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Reduction failed: {str(e)}"
+            detail=f"Redaction failed: {str(e)}"
         )
 
 
+# -----------------------------
 # PDF redaction
+# -----------------------------
 @router.post("/pdf", response_model=RedactResponse)
 async def redact_pdf_file(
+    request: Request,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)  
+    db: Session = Depends(get_db)
 ):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
@@ -53,7 +73,8 @@ async def redact_pdf_file(
 
     try:
         text = extract_text_from_pdf(file_bytes)
-        result = redaction_helper(text)
+        pipeline = request.app.state.pii_pipeline
+        result = redaction_helper(text, pipeline)
 
         create_redaction_log(
         db=db,
@@ -71,19 +92,24 @@ async def redact_pdf_file(
         )
 
 
+# -----------------------------
 # DOCX redaction
+# -----------------------------
 @router.post("/docx", response_model=RedactResponse)
 async def redact_docx_file(
+    request: Request,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)  
+    db: Session = Depends(get_db)
 ):
     if not file.filename.endswith(".docx"):
         raise HTTPException(status_code=400, detail="Only DOCX files are supported")
 
     file_bytes = await file.read()
+
     try:
         text = extract_text_from_docx(file_bytes)
-        result = redaction_helper(text)
+        pipeline = request.app.state.pii_pipeline
+        result = redaction_helper(text, pipeline)
 
         create_redaction_log(
         db=db,
@@ -101,8 +127,9 @@ async def redact_docx_file(
         )
 
 
-
+# -----------------------------
 # CSV column fetch
+# -----------------------------
 @router.post("/csv/columns")
 async def get_csv_column_names(file: UploadFile = File(...)):
     if not file.filename.endswith(".csv"):
@@ -117,13 +144,15 @@ async def get_csv_column_names(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# -----------------------------
 # CSV redaction
+# -----------------------------
 @router.post("/redact/csv", response_model=RedactResponse)
 async def redact_csv_file(
     request: Request,
     file: UploadFile = File(...),
     selected_columns: str = Form(...),
-    db: Session = Depends(get_db)   
+    db: Session = Depends(get_db)
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
@@ -134,11 +163,20 @@ async def redact_csv_file(
         try:
             columns = json.loads(selected_columns)
         except json.JSONDecodeError:
-            columns = [col.strip() for col in selected_columns.split(",") if col.strip()]
+            columns = [c.strip() for c in selected_columns.split(",") if c.strip()]
 
         text = extract_selected_columns_as_text(file_bytes, columns)
-        result = redaction_helper(text)
+        pipeline = request.app.state.pii_pipeline
+        result = redaction_helper(text, pipeline)
 
+        log = RedactionLog(
+            input_type="csv",
+            source_name=file.filename,
+            entity_count=len(result.entities),
+            columns_redacted=json.dumps(columns)
+        )
+        db.add(log)
+        db.commit()
         create_redaction_log(
         db=db,
         input_type="csv",
