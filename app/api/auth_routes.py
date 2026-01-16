@@ -58,7 +58,6 @@ def login_user(
             detail="Invalid email or password"
         )
 
-    user.is_logged_in = True
     db.commit()
 
     token = create_access_token({"sub": str(user.id)})
@@ -67,12 +66,3 @@ def login_user(
         "access_token": token,
         "token_type": "bearer"
     }
-
-@router.post("/logout")
-def logout_user(
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    current_user.is_logged_in = False
-    db.commit()
-    return {"message": "Logged out successfully"}

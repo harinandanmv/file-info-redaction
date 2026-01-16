@@ -41,11 +41,5 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled"
         )
-
-    if not user.is_logged_in:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User is logged out"
-        )
-
+    
     return user
