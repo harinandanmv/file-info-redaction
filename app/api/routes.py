@@ -59,28 +59,55 @@ def redact_plain_text(
 async def redact_pdf_file(
     request: Request,
     file: UploadFile = File(...),
+    selected_entities: str = Form(None),
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not file.filename.endswith(".pdf"):
+    if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     file_bytes = await file.read()
+    await file_size_validator(file_bytes)
 
     try:
         text = extract_text_from_pdf(file_bytes)
+
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No readable text found")
+
         pipeline = request.app.state.pii_pipeline
-        result = redaction_helper(text, pipeline)
+
+        entity_list = None
+
+        if selected_entities is not None:
+            try:
+                parsed = json.loads(selected_entities)
+                if isinstance(parsed, list) and parsed:
+                    entity_list = parsed
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid selected_entities format"
+                )
+
+        result = redaction_helper(
+            text=text,
+            pipeline=pipeline,
+            selected_entities=entity_list
+        )
 
         create_redaction_log(
-        db=db,
-        user_id=current_user.id,
-        input_type="pdf",
-        source_name=file.filename,
-        entity_count=len(result.entities)
-    )
+            db=db,
+            user_id=current_user.id,
+            input_type="pdf",
+            source_name=file.filename,
+            entity_count=len(result.entities)
+        )
+
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -92,10 +119,11 @@ async def redact_pdf_file(
 async def redact_docx_file(
     request: Request,
     file: UploadFile = File(...),
+    selected_entities: str = Form(None),
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not file.filename.endswith(".docx"):
+    if not file.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="Only DOCX files are supported")
 
     file_bytes = await file.read()
@@ -103,18 +131,43 @@ async def redact_docx_file(
 
     try:
         text = extract_text_from_docx(file_bytes)
+
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No readable text found")
+
         pipeline = request.app.state.pii_pipeline
-        result = redaction_helper(text, pipeline)
+
+        entity_list = None
+
+        if selected_entities is not None:
+            try:
+                parsed = json.loads(selected_entities)
+                if isinstance(parsed, list) and parsed:
+                    entity_list = parsed
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid selected_entities format"
+                )
+
+        result = redaction_helper(
+            text=text,
+            pipeline=pipeline,
+            selected_entities=entity_list
+        )
 
         create_redaction_log(
-        db=db,
-        user_id=current_user.id,
-        input_type="docx",
-        source_name=file.filename,
-        entity_count=len(result.entities)
-    )
+            db=db,
+            user_id=current_user.id,
+            input_type="docx",
+            source_name=file.filename,
+            entity_count=len(result.entities)
+        )
+
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -134,7 +187,6 @@ async def get_csv_column_names(file: UploadFile = File(...)):
         return {"columns": columns}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 # CSV redaction
 @router.post("/redact/csv", response_model=RedactResponse)
@@ -174,3 +226,52 @@ async def redact_csv_file(
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception:
         raise HTTPException(status_code=500, detail="CSV redaction failed")
+
+@router.post("/detect/entities")
+async def detect_entities(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user = Depends(get_current_user)
+):
+    
+    filename = file.filename.lower()
+
+    if not (filename.endswith(".pdf") or filename.endswith(".docx")):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF and DOCX files are supported"
+        )
+
+    file_bytes = await file.read()
+    await file_size_validator(file_bytes)
+
+    try:
+        if filename.endswith(".pdf"):
+            text = extract_text_from_pdf(file_bytes)
+        else:
+            text = extract_text_from_docx(file_bytes)
+
+        if not text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="No readable text found in document"
+            )
+
+        pipeline = request.app.state.pii_pipeline
+        _, entities = pipeline.run(text)
+
+        detected_entities = sorted(
+            list({e.entity_type for e in entities})
+        )
+
+        return {
+            "detected_entities": detected_entities
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Entity detection failed: {str(e)}"
+        )
