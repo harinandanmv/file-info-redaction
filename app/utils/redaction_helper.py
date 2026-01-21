@@ -9,7 +9,6 @@ def redaction_helper(
 
     redacted_text, entities = pipeline.run(text)
 
-    # If no filtering → return default behavior
     if not selected_entities:
         api_entities = [
             DetectedEntity(
@@ -27,13 +26,11 @@ def redaction_helper(
             entities=api_entities
         )
 
-    # Filter entities by selected types
     filtered_entities = [
         e for e in entities
         if e.entity_type in selected_entities
     ]
 
-    # Manual redaction
     redacted_chars = list(text)
 
     text_length = len(text)

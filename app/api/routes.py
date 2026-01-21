@@ -5,15 +5,15 @@ import json
 from app.core.config import MAX_PLAIN_TEXT_LENGTH
 from app.schemas.redact import RedactRequest, RedactResponse
 from app.utils.csv_writer import create_redacted_csv
+
+from app.utils.docx_redactor import redact_docx_paragraphwise
 from app.utils.redaction_helper import redaction_helper
 from app.utils.file_size_validator import file_size_validator
-from app.services.file_extractors.csv_extractor import extract_redacted_csv_data
-
 from app.services.file_extractors.csv_extractor import (
+    extract_redacted_csv_data,
     get_csv_columns
 )
 
-from app.services.file_extractors.pdf_extractor import extract_text_from_pdf
 from app.services.file_extractors.docx_extractor import extract_text_from_docx
 
 from app.db.database import get_db
@@ -56,7 +56,9 @@ def redact_plain_text(
         )
 
 # PDF redaction
-@router.post("/pdf", response_model=RedactResponse)
+from app.utils.pdf_redactor import redact_pdf_file as redact_pdf_file_util
+
+@router.post("/pdf")
 async def redact_pdf_file(
     request: Request,
     file: UploadFile = File(...),
@@ -71,15 +73,9 @@ async def redact_pdf_file(
     await file_size_validator(file_bytes)
 
     try:
-        text = extract_text_from_pdf(file_bytes)
-
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="No readable text found")
-
         pipeline = request.app.state.pii_pipeline
-
+        
         entity_list = None
-
         if selected_entities is not None:
             try:
                 parsed = json.loads(selected_entities)
@@ -91,21 +87,27 @@ async def redact_pdf_file(
                     detail="Invalid selected_entities format"
                 )
 
-        result = redaction_helper(
-            text=text,
+        pdf_file, entity_count = redact_pdf_file_util(
+            file_bytes=file_bytes,
             pipeline=pipeline,
             selected_entities=entity_list
         )
-
+        
         create_redaction_log(
             db=db,
             user_id=current_user.id,
             input_type="pdf",
             source_name=file.filename,
-            entity_count=len(result.entities)
+            entity_count=entity_count
         )
 
-        return result
+        return StreamingResponse(
+            pdf_file,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=redacted.pdf"
+            }
+        )
 
     except HTTPException:
         raise
@@ -116,7 +118,7 @@ async def redact_pdf_file(
         )
 
 # DOCX redaction
-@router.post("/docx", response_model=RedactResponse)
+@router.post("/docx")
 async def redact_docx_file(
     request: Request,
     file: UploadFile = File(...),
@@ -124,56 +126,35 @@ async def redact_docx_file(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not file.filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Only DOCX files are supported")
-
     file_bytes = await file.read()
-    await file_size_validator(file_bytes)
 
-    try:
-        text = extract_text_from_docx(file_bytes)
+    if not selected_entities:
+        entity_list = None  
+    else:
+        parsed = json.loads(selected_entities)
+        entity_list = parsed if parsed else None
 
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="No readable text found")
+    docx_file, entity_count = redact_docx_paragraphwise(
+        original_doc_bytes=file_bytes,
+        pipeline=request.app.state.pii_pipeline,
+        selected_entities=entity_list
+    )
 
-        pipeline = request.app.state.pii_pipeline
+    create_redaction_log(
+        db=db,
+        user_id=current_user.id,
+        input_type="docx",
+        source_name=file.filename,
+        entity_count=entity_count
+    )
 
-        entity_list = None
-
-        if selected_entities is not None:
-            try:
-                parsed = json.loads(selected_entities)
-                if isinstance(parsed, list) and parsed:
-                    entity_list = parsed
-            except json.JSONDecodeError:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid selected_entities format"
-                )
-
-        result = redaction_helper(
-            text=text,
-            pipeline=pipeline,
-            selected_entities=entity_list
-        )
-
-        create_redaction_log(
-            db=db,
-            user_id=current_user.id,
-            input_type="docx",
-            source_name=file.filename,
-            entity_count=len(result.entities)
-        )
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"DOCX Redaction Failed: {str(e)}"
-        )
+    return StreamingResponse(
+        docx_file,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": "attachment; filename=redacted.docx"
+        }
+    )
 
 # CSV column fetch
 @router.post("/csv/columns")
@@ -206,7 +187,7 @@ async def redact_csv_file(
     try:
         columns = json.loads(selected_columns)
 
-        headers, redacted_rows = extract_redacted_csv_data(
+        headers, redacted_rows, entity_count = extract_redacted_csv_data(
             file_bytes,
             columns
         )
@@ -218,7 +199,7 @@ async def redact_csv_file(
             user_id=current_user.id,
             input_type="csv",
             source_name=file.filename,
-            entity_count=0,
+            entity_count=entity_count,
             columns_redacted=columns
         )
 
@@ -253,7 +234,11 @@ async def detect_entities(
 
     try:
         if filename.endswith(".pdf"):
-            text = extract_text_from_pdf(file_bytes)
+            import fitz
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
         else:
             text = extract_text_from_docx(file_bytes)
 

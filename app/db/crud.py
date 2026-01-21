@@ -1,10 +1,7 @@
 from sqlalchemy.orm import Session
-from app.db.models import RedactionLog
-import json
-
-from sqlalchemy.orm import Session
-from app.db.models import User
+from app.db.models import RedactionLog, User
 from app.auth.password import hash_password
+import json
 
 def create_redaction_log(
     db: Session,
