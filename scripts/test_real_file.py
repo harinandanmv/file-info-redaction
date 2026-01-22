@@ -18,12 +18,14 @@ def test_on_file(filename):
     
     print(f"Running redaction...")
     # Run the utility
-    redacted_io = redact_pdf_file(
+    redacted_io, entity_count = redact_pdf_file(
         file_bytes=file_bytes,
         pipeline=pipeline,
         selected_entities=None # Redact all detected
     )
     
+    print(f"DEBUG: Entity count returned: {entity_count}")
+
     output_filename = f"redacted_{filename}"
     print(f"Saving to {output_filename}...")
     with open(output_filename, "wb") as f_out:

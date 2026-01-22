@@ -17,7 +17,6 @@ def extract_redacted_csv_data(
     if missing:
         raise ValueError(f"Invalid columns selected: {missing}")
 
-    # Count entities (cells) that will be redacted
     entity_count = len(df) * len(selected_columns)
 
     for col in selected_columns:
