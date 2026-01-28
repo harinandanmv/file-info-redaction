@@ -9,7 +9,7 @@ def get_csv_columns(file_bytes: bytes) -> list[str]:
 def extract_redacted_csv_data(
     file_bytes: bytes,
     selected_columns: list[str]
-):
+) -> tuple[list[str], list, int]:
     df = pd.read_csv(BytesIO(file_bytes), encoding="utf-8-sig")
     df.columns = df.columns.str.strip()
 
@@ -17,10 +17,12 @@ def extract_redacted_csv_data(
     if missing:
         raise ValueError(f"Invalid columns selected: {missing}")
 
+    entity_count = len(df) * len(selected_columns)
+
     for col in selected_columns:
         df[col] = "[REDACTED]"
 
     headers = df.columns.tolist()
     rows = df.values.tolist()
 
-    return headers, rows
+    return headers, rows, entity_count
