@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc, cast, Date
 from app.db.models import RedactionLog, User
 from app.auth.password import hash_password
 import json
+from datetime import date
 
 def create_redaction_log(
     db: Session,
@@ -41,3 +43,31 @@ def create_user(db: Session, email: str, password: str):
     db.refresh(user)
 
     return user
+
+def get_user_stats(db: Session, user_id: int):
+    total_files = db.query(RedactionLog).filter(RedactionLog.user_id == user_id).count()
+    total_entities = db.query(func.sum(RedactionLog.entity_count)).filter(RedactionLog.user_id == user_id).scalar() or 0
+    
+    # Recent activity - count redactions per day for the last 7 days (or just recent entries grouped by day)
+    # Since we want a list of dates and counts, let's group by created_at date
+    recent_activity = db.query(
+        cast(RedactionLog.created_at, Date).label('date'),
+        func.count(RedactionLog.id).label('count')
+    ).filter(
+        RedactionLog.user_id == user_id
+    ).group_by(
+        cast(RedactionLog.created_at, Date)
+    ).order_by(
+        desc('date')
+    ).limit(7).all()
+
+    stats_list = [
+        {"date": str(stat.date), "count": stat.count} 
+        for stat in recent_activity
+    ]
+    
+    return {
+        "total_files_redacted": total_files,
+        "total_entities_detected": total_entities,
+        "recent_activity": stats_list
+    }

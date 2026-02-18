@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from typing import List
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -20,3 +21,13 @@ class UserLogin(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+
+class RedactionStat(BaseModel):
+    date: str
+    count: int
+
+class UserStats(BaseModel):
+    total_files_redacted: int
+    total_entities_detected: int
+    most_frequent_entity: str | None
+    recent_activity: List[RedactionStat]

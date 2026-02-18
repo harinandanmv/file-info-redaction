@@ -6,18 +6,24 @@ from app.core.config import MAX_PLAIN_TEXT_LENGTH
 from app.schemas.redact import RedactRequest, RedactResponse
 from app.utils.csv_writer import create_redacted_csv
 
-from app.utils.docx_redactor import redact_docx_paragraphwise
+from app.utils.docx_redactor import (
+    redact_docx_paragraphwise,
+    redact_docx_preview
+)
+
 from app.utils.redaction_helper import redaction_helper
 from app.utils.file_size_validator import file_size_validator
 from app.services.file_extractors.csv_extractor import (
     extract_redacted_csv_data,
-    get_csv_columns
+    get_csv_columns,
+    get_redacted_csv_preview
 )
 
 from app.services.file_extractors.docx_extractor import extract_text_from_docx
 
 from app.db.database import get_db
-from app.db.crud import create_redaction_log
+from app.schemas.user import UserStats
+from app.db.crud import create_redaction_log, get_user_stats
 from app.auth.dependencies import get_current_user
 
 router = APIRouter()
@@ -56,7 +62,10 @@ def redact_plain_text(
         )
 
 # PDF redaction
-from app.utils.pdf_redactor import redact_pdf_file as redact_pdf_file_util
+from app.utils.pdf_redactor import (
+    redact_pdf_file as redact_pdf_file_util,
+    redact_pdf_preview
+)
 
 @router.post("/pdf")
 async def redact_pdf_file(
@@ -117,6 +126,45 @@ async def redact_pdf_file(
             detail=f"PDF Redaction Failed: {str(e)}"
         )
 
+@router.post("/preview/pdf")
+async def redact_pdf_preview_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    selected_entities: str = Form(None)
+):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    file_bytes = await file.read()
+    
+    try:
+        pipeline = request.app.state.pii_pipeline
+        
+        entity_list = None
+        if selected_entities is not None:
+             try:
+                parsed = json.loads(selected_entities)
+                if isinstance(parsed, list) and parsed:
+                    entity_list = parsed
+             except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid selected_entities format")
+
+        preview_text = redact_pdf_preview(
+            file_bytes=file_bytes,
+            pipeline=pipeline,
+            selected_entities=entity_list
+        )
+        
+        return {"preview_text": preview_text}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF Preview Failed: {str(e)}"
+        )
+
 # DOCX redaction
 @router.post("/docx")
 async def redact_docx_file(
@@ -155,6 +203,33 @@ async def redact_docx_file(
             "Content-Disposition": "attachment; filename=redacted.docx"
         }
     )
+
+@router.post("/preview/docx")
+async def redact_docx_preview_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    selected_entities: str = Form(None)
+):
+    file_bytes = await file.read()
+
+    if not selected_entities:
+        entity_list = None
+    else:
+        try:
+            parsed = json.loads(selected_entities)
+            entity_list = parsed if parsed else None
+        except json.JSONDecodeError:
+           raise HTTPException(status_code=400, detail="Invalid selected_entities format")
+
+    try:
+        preview_text = redact_docx_preview(
+            original_doc_bytes=file_bytes,
+            pipeline=request.app.state.pii_pipeline,
+            selected_entities=entity_list
+        )
+        return {"preview_text": preview_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # CSV column fetch
 @router.post("/csv/columns")
@@ -214,6 +289,23 @@ async def redact_csv_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/preview/csv")
+async def redact_csv_preview(
+    file: UploadFile = File(...),
+    selected_columns: str = Form(...)
+):
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+    file_bytes = await file.read()
+
+    try:
+        columns = json.loads(selected_columns)
+        preview_data = get_redacted_csv_preview(file_bytes, columns)
+        return preview_data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/detect/entities")
 async def detect_entities(
     request: Request,
@@ -265,4 +357,18 @@ async def detect_entities(
         raise HTTPException(
             status_code=500,
             detail=f"Entity detection failed: {str(e)}"
+        )
+
+@router.get("/dashboard/user-stats", response_model=UserStats)
+def get_stats(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        stats = get_user_stats(db, current_user.id)
+        return stats
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch stats: {str(e)}"
         )
