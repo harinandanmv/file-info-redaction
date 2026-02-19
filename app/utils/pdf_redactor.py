@@ -66,3 +66,35 @@ def redact_pdf_file(
         
     pdf_bytes = doc.tobytes(garbage=4, deflate=True)
     return BytesIO(pdf_bytes), total_entity_count
+
+def redact_pdf_preview(
+    file_bytes: bytes,
+    pipeline,
+    selected_entities: list[str] | None
+) -> str:
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    if len(doc) < 1:
+        raise ValueError("PDF has no pages")
+        
+    page = doc[0] # Process only the first page
+    text = page.get_text()
+    
+    if not text.strip():
+        return ""
+
+    _, entities = pipeline.run(text)
+    
+    chars = list(text)
+    
+    for e in entities:
+        if selected_entities is not None and e.entity_type not in selected_entities:
+            continue
+            
+        # Ensure we don't go out of bounds
+        if e.start < 0 or e.end > len(text):
+             continue
+
+        for i in range(e.start, e.end):
+            chars[i] = "*"
+            
+    return "".join(chars)

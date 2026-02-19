@@ -26,3 +26,27 @@ def extract_redacted_csv_data(
     rows = df.values.tolist()
 
     return headers, rows, entity_count
+
+def get_redacted_csv_preview(
+    file_bytes: bytes,
+    selected_columns: list[str],
+    limit: int = 5
+) -> dict:
+    df = pd.read_csv(BytesIO(file_bytes), encoding="utf-8-sig", nrows=limit)
+    df.columns = df.columns.str.strip()
+
+    missing = set(selected_columns) - set(df.columns)
+    if missing:
+         # For preview, we might just ignore missing columns or raise error.
+         # Raising error seems safer to alert frontend.
+        raise ValueError(f"Invalid columns selected: {missing}")
+
+    for col in selected_columns:
+        if col in df.columns:
+            df[col] = "[REDACTED]"
+
+    return {
+        "headers": df.columns.tolist(),
+        "rows": df.values.tolist()
+    }
+

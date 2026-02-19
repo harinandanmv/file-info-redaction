@@ -48,3 +48,44 @@ def redact_docx_paragraphwise(
     doc.save(output)
     output.seek(0)
     return output, total_entity_count
+
+def redact_docx_preview(
+    original_doc_bytes: bytes,
+    pipeline,
+    selected_entities: list[str] | None,
+    limit_paragraphs: int = 20
+) -> str:
+    doc = Document(BytesIO(original_doc_bytes))
+    preview_text = ""
+    
+    count = 0
+    for para in doc.paragraphs:
+        if count >= limit_paragraphs:
+            break
+            
+        full_text = "".join([run.text for run in para.runs])
+        if not full_text.strip():
+            continue
+            
+        _, entities = pipeline.run(full_text)
+        
+        chars = list(full_text)
+        
+        for e in entities:
+             if selected_entities is not None and e.entity_type not in selected_entities:
+                 continue
+
+             if e.start < 0 or e.end > len(full_text):
+                  continue
+                  
+             span_len = e.end - e.start
+             if span_len > 60 or (len(full_text) > 50 and span_len / len(full_text) > 0.8):
+                  continue
+
+             for i in range(e.start, e.end):
+                 chars[i] = "*"
+        
+        preview_text += "".join(chars) + "\n\n"
+        count += 1
+        
+    return preview_text
