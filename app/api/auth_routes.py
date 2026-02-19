@@ -28,7 +28,8 @@ def register_user(
     new_user = create_user(
         db=db,
         email=user.email,
-        password=user.password
+        password=user.password,
+        name=user.name
     )
 
     return new_user

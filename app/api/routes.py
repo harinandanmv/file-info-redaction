@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, D
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import json
+import io
+
 from app.core.config import MAX_PLAIN_TEXT_LENGTH
 from app.schemas.redact import RedactRequest, RedactResponse
 from app.utils.csv_writer import create_redacted_csv
@@ -29,7 +31,7 @@ from app.auth.dependencies import get_current_user
 router = APIRouter()
 
 # Plain text redaction
-@router.post("/redact", response_model=RedactResponse)
+@router.post("/redact")
 def redact_plain_text(
     request: Request,
     payload: RedactRequest,
@@ -53,7 +55,10 @@ def redact_plain_text(
         source_name="plain_text",
         entity_count=len(result.entities)
         )
-        return result
+        return StreamingResponse(
+            io.StringIO(result.redacted_text),
+            media_type="text/plain"
+        )
 
     except Exception as e:
         raise HTTPException(

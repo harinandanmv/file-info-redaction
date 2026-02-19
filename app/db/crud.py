@@ -30,12 +30,13 @@ def create_redaction_log(
 def get_user_by_email(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
 
-def create_user(db: Session, email: str, password: str):
+def create_user(db: Session, email: str, password: str, name: str):
     hashed_pwd = hash_password(password)
 
     user = User(
         email=email,
-        hashed_password=hashed_pwd
+        hashed_password=hashed_pwd,
+        name=name
     )
 
     db.add(user)
@@ -48,8 +49,6 @@ def get_user_stats(db: Session, user_id: int):
     total_files = db.query(RedactionLog).filter(RedactionLog.user_id == user_id).count()
     total_entities = db.query(func.sum(RedactionLog.entity_count)).filter(RedactionLog.user_id == user_id).scalar() or 0
     
-    # Recent activity - count redactions per day for the last 7 days (or just recent entries grouped by day)
-    # Since we want a list of dates and counts, let's group by created_at date
     recent_activity = db.query(
         cast(RedactionLog.created_at, Date).label('date'),
         func.count(RedactionLog.id).label('count')
@@ -66,8 +65,11 @@ def get_user_stats(db: Session, user_id: int):
         for stat in recent_activity
     ]
     
+    user = db.query(User).filter(User.id == user_id).first()
+    
     return {
-        "total_files_redacted": total_files,
-        "total_entities_detected": total_entities,
+        "name": user.name if user else None,
+        "documents_processed": total_files,
+        "redactions_done": total_entities,
         "recent_activity": stats_list
     }

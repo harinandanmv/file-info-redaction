@@ -4,11 +4,12 @@ from typing import List
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-
+    name: str
 
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
+    name: str | None
 
     class Config:
         from_attributes = True
@@ -16,7 +17,6 @@ class UserResponse(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
-
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -27,7 +27,8 @@ class RedactionStat(BaseModel):
     count: int
 
 class UserStats(BaseModel):
-    total_files_redacted: int
-    total_entities_detected: int
-    most_frequent_entity: str | None
+    name: str | None = None
+    documents_processed: int
+    redactions_done: int
+    most_frequent_entity: str | None = None
     recent_activity: List[RedactionStat]
