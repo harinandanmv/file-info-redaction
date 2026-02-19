@@ -34,10 +34,10 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-app.include_router(router, prefix="/api")
+app.include_router(router)
 
 @app.get("/")
 def health():
     return {"status": "ok"}
 
-app.include_router(auth_router, prefix="/api/auth")
+app.include_router(auth_router)

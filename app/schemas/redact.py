@@ -3,6 +3,7 @@ from typing import List
 
 class RedactRequest(BaseModel):
     text: str
+    selected_entities: List[str] = None
 
 class DetectedEntity(BaseModel):
     entity_type: str

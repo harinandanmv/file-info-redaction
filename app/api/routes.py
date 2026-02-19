@@ -46,7 +46,7 @@ def redact_plain_text(
         )
     try:
         pipeline = request.app.state.pii_pipeline
-        result = redaction_helper(payload.text, pipeline)
+        result = redaction_helper(payload.text, pipeline, payload.selected_entities)
 
         create_redaction_log(
         db=db,
@@ -314,39 +314,48 @@ async def redact_csv_preview(
 @router.post("/detect/entities")
 async def detect_entities(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
+    text: str = Form(None),
     current_user = Depends(get_current_user)
 ):
-    
-    filename = file.filename.lower()
-
-    if not (filename.endswith(".pdf") or filename.endswith(".docx")):
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF and DOCX files are supported"
-        )
-
-    file_bytes = await file.read()
-    await file_size_validator(file_bytes)
-
     try:
-        if filename.endswith(".pdf"):
-            import fitz
-            doc = fitz.open(stream=file_bytes, filetype="pdf")
-            text = ""
-            for page in doc:
-                text += page.get_text()
-        else:
-            text = extract_text_from_docx(file_bytes)
+        content = ""
+        
+        if text:
+            content = text
+        elif file:
+            filename = file.filename.lower()
 
-        if not text.strip():
+            if not (filename.endswith(".pdf") or filename.endswith(".docx")):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only PDF and DOCX files are supported"
+                )
+
+            file_bytes = await file.read()
+            await file_size_validator(file_bytes)
+
+            if filename.endswith(".pdf"):
+                import fitz
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                for page in doc:
+                    content += page.get_text()
+            else:
+                content = extract_text_from_docx(file_bytes)
+        else:
             raise HTTPException(
                 status_code=400,
-                detail="No readable text found in document"
+                detail="Either text or file must be provided"
+            )
+
+        if not content.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="No readable text found"
             )
 
         pipeline = request.app.state.pii_pipeline
-        _, entities = pipeline.run(text)
+        _, entities = pipeline.run(content)
 
         detected_entities = sorted(
             list({e.entity_type for e in entities})

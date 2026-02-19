@@ -37,8 +37,6 @@ def get_redacted_csv_preview(
 
     missing = set(selected_columns) - set(df.columns)
     if missing:
-         # For preview, we might just ignore missing columns or raise error.
-         # Raising error seems safer to alert frontend.
         raise ValueError(f"Invalid columns selected: {missing}")
 
     for col in selected_columns:
@@ -49,4 +47,3 @@ def get_redacted_csv_preview(
         "headers": df.columns.tolist(),
         "rows": df.values.tolist()
     }
-
