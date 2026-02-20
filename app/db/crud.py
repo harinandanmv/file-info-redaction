@@ -3,7 +3,7 @@ from sqlalchemy import func, desc, cast, Date
 from app.db.models import RedactionLog, User
 from app.auth.password import hash_password
 import json
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 def create_redaction_log(
     db: Session,
@@ -49,27 +49,26 @@ def get_user_stats(db: Session, user_id: int):
     total_files = db.query(RedactionLog).filter(RedactionLog.user_id == user_id).count()
     total_entities = db.query(func.sum(RedactionLog.entity_count)).filter(RedactionLog.user_id == user_id).scalar() or 0
     
-    recent_activity = db.query(
-        cast(RedactionLog.created_at, Date).label('date'),
-        func.count(RedactionLog.id).label('count')
-    ).filter(
-        RedactionLog.user_id == user_id
-    ).group_by(
-        cast(RedactionLog.created_at, Date)
-    ).order_by(
-        desc('date')
-    ).limit(7).all()
-
-    stats_list = [
-        {"date": str(stat.date), "count": stat.count} 
-        for stat in recent_activity
-    ]
-    
     user = db.query(User).filter(User.id == user_id).first()
     
     return {
         "name": user.name if user else None,
         "documents_processed": total_files,
         "redactions_done": total_entities,
-        "recent_activity": stats_list
     }
+
+def check_user_upload_limit(db: Session, user_id: int):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False 
+    
+    limit = user.upload_limit
+    
+    one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+    
+    count = db.query(RedactionLog).filter(
+        RedactionLog.user_id == user_id,
+        RedactionLog.created_at >= one_day_ago
+    ).count()
+    
+    return count < limit

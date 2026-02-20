@@ -30,5 +30,3 @@ class UserStats(BaseModel):
     name: str | None = None
     documents_processed: int
     redactions_done: int
-    most_frequent_entity: str | None = None
-    recent_activity: List[RedactionStat]
