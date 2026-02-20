@@ -25,7 +25,7 @@ from app.services.file_extractors.docx_extractor import extract_text_from_docx
 
 from app.db.database import get_db
 from app.schemas.user import UserStats
-from app.db.crud import create_redaction_log, get_user_stats
+from app.db.crud import create_redaction_log, get_user_stats, check_user_upload_limit
 from app.auth.dependencies import get_current_user
 
 router = APIRouter()
@@ -38,6 +38,11 @@ def redact_plain_text(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not check_user_upload_limit(db, current_user.id):
+        raise HTTPException(
+            status_code=429,
+            detail="Daily upload limit reached"
+        )
     
     if len(payload.text) > MAX_PLAIN_TEXT_LENGTH:
         raise HTTPException(
@@ -80,6 +85,9 @@ async def redact_pdf_file(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not check_user_upload_limit(db, current_user.id):
+        raise HTTPException(status_code=429, detail="Daily upload limit reached")
+
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
@@ -179,6 +187,9 @@ async def redact_docx_file(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not check_user_upload_limit(db, current_user.id):
+        raise HTTPException(status_code=429, detail="Daily upload limit reached")
+
     file_bytes = await file.read()
 
     if not selected_entities:
@@ -259,6 +270,9 @@ async def redact_csv_file(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not check_user_upload_limit(db, current_user.id):
+        raise HTTPException(status_code=429, detail="Daily upload limit reached")
+
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
 

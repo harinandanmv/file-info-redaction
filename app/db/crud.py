@@ -3,7 +3,7 @@ from sqlalchemy import func, desc, cast, Date
 from app.db.models import RedactionLog, User
 from app.auth.password import hash_password
 import json
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 def create_redaction_log(
     db: Session,
@@ -73,3 +73,25 @@ def get_user_stats(db: Session, user_id: int):
         "redactions_done": total_entities,
         "recent_activity": stats_list
     }
+
+def check_user_upload_limit(db: Session, user_id: int):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False # Or raise error, but False means no limit for non-existent user? safer to return True or handle upstream.
+                     # Actually, if user doesn't exist, we can't check limit. 
+                     # But current_user dependency ensures user exists.
+    
+    limit = user.upload_limit
+    
+    # helper for 24h window
+    one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+    
+    # count logs in last 24h
+    # RedactionLog.created_at is timestamp with timezone
+    
+    count = db.query(RedactionLog).filter(
+        RedactionLog.user_id == user_id,
+        RedactionLog.created_at >= one_day_ago
+    ).count()
+    
+    return count < limit
